@@ -15,7 +15,7 @@ jobs:
       - name: Setup Google Cloud Credentials
         run: |
           echo "${{ secrets.GCP_CREDENTIALS_BASE64 }}" | base64 --decode > $HOME/gcp-key.json
-          
+
       - name: Set GOOGLE_APPLICATION_CREDENTIALS environment variable
         run: echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcp-key.json" >> $GITHUB_ENV
 
@@ -29,6 +29,11 @@ jobs:
 
       - name: Terraform plan
         run: terraform plan -out=tfplan.binary
+
+      - name: Set up Infracost
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+          echo "$HOME/.infracost/bin" >> $GITHUB_PATH
 
       - name: Generate Infracost cost estimate
         env:
