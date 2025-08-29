@@ -17,4 +17,10 @@ jobs:
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         run: |
-          infracost breakdown --path=. --format=diff --show-skipped --fail-on-error
+          infracost breakdown --path=. --format=json --out-file=infracost-out.json
+
+      - name: Comment on PR
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+        run: |
+          infracost comment github --path=infracost-out.json
