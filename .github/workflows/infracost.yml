@@ -1,0 +1,58 @@
+name: Infracost
+
+on:
+  pull_request:
+
+jobs:
+  infracost:
+    name: Infracost
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Google Cloud Credentials
+        run: |
+          echo "${{ secrets.GCP_CREDENTIALS_BASE64 }}" | base64 --decode > $HOME/gcp-key.json
+
+      - name: Set GOOGLE_APPLICATION_CREDENTIALS environment variable
+        run: echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform plan
+        run: terraform plan -out=tfplan.binary
+
+      - name: Set up Infracost
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+          echo "$HOME/.infracost/bin" >> $GITHUB_PATH
+
+      - name: Generate Infracost cost estimate
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcp-key.json
+        run: |
+          terraform show -json tfplan.binary > plan.json
+          infracost breakdown --path=plan.json \
+            --format=json \
+            --out-file=infracost-out.json
+
+      - name: Post Infracost comment to GitHub PR
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          infracost comment github \
+            --path=infracost-out.json \
+            --repo=$GITHUB_REPOSITORY \
+            --github-token=$GITHUB_TOKEN \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --behavior=update
