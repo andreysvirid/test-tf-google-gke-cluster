@@ -12,21 +12,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Setup Google Cloud Credentials
+        run: |
+          echo "${{ secrets.GCP_CREDENTIALS }}" > $HOME/gcp-key.json
+
+      - name: Set GOOGLE_APPLICATION_CREDENTIALS environment variable
+        run: echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcp-key.json" >> $GITHUB_ENV
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.6 # або будь-яка стабільна версія, яку ти використовуєш
+          terraform_version: 1.6.6
 
-      - name: Set up Infracost
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform plan
+        run: terraform plan -out=tfplan.binary
 
       - name: Generate Infracost cost estimate
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/gcp-key.json
         run: |
-          terraform init
-          terraform plan -out=tfplan.binary
           terraform show -json tfplan.binary > plan.json
           infracost breakdown --path=plan.json \
             --format=json \
