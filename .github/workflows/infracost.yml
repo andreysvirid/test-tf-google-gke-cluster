@@ -1,30 +1,37 @@
 name: Infracost
 
 on:
-  pull_request:   # Запускати на кожному Pull Request
+  pull_request:
     branches:
       - main
 
 jobs:
   infracost:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Infracost
-        uses: infracost/actions/setup@v2
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Install Infracost
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+
+      - name: Authenticate with Infracost
+        run: infracost auth login --api-key ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost breakdown
+        run: |
+          terraform init
+          terraform plan -out=tfplan.binary
+          terraform show -json tfplan.binary > plan.json
+          infracost breakdown --path plan.json --format github-comment --show-skipped --out-file infracost-comment.json
+
+      - name: Post Infracost comment
+        uses: infracost/actions@v3
         with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
-
-      - name: Terraform init
-        run: terraform init
-
-      - name: Generate Infracost cost estimate baseline
-        run: infracost breakdown --path=. --format=json --out-file=/tmp/infracost-base.json
-
-      - name: Comment PR with cost estimate
-        uses: infracost/actions/comment@v2
-        with:
-          path: /tmp/infracost-base.json
-          behavior: update
+          path: infracost-comment.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
